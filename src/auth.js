@@ -414,6 +414,9 @@ export async function webLogin(config = {}) {
     clearSession();
   }
 
+  // If skipBrowser is set, only check saved session — don't launch browser
+  if (config.skipBrowser) return null;
+
   // 2. Start local auth server and open browser
   return new Promise(async (resolve) => {
     let serverResult = null;

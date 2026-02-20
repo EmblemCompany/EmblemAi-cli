@@ -24,7 +24,8 @@ import path from 'path';
 import os from 'os';
 import readline from 'readline';
 import chalk from 'chalk';
-import { getPassword, authenticate, webLogin, promptPassword, authMenu, readPluginSecrets, migrateLegacyCredentials } from './src/auth.js';
+import { getPassword, getCredential, authenticate, webLogin, promptPassword, authMenu, readPluginSecrets, migrateLegacyCredentials } from './src/auth.js';
+import { saveSession } from './src/session-store.js';
 import { processCommand } from './src/commands.js';
 import { PluginManager } from './src/plugins/loader.js';
 import * as glow from './src/glow.js';
@@ -325,26 +326,57 @@ async function main() {
       if (!isAgentMode && !isReset) console.log(chalk.dim('\nAuthenticating with Agent Hustle...'));
 
       ({ authSdk } = await authenticate(password, { authUrl, apiUrl }));
+      // Save session so the ElizaOS plugin can pick it up from ~/.emblemai/session.json
+      const sess = authSdk.getSession();
+      if (sess) saveSession(sess);
     } else {
-      // Interactive mode: try web-based auth
+      // Interactive mode: try saved credentials before web login
       console.log(chalk.dim('\nChecking for saved session...'));
-      const result = await webLogin({ authUrl, apiUrl });
+
+      // 1. Try saved session (session.json)
+      const result = await webLogin({ authUrl, apiUrl, skipBrowser: true });
 
       if (result) {
         ({ authSdk } = result);
-        console.log(fmt.success(result.source === 'saved' ? 'Authenticated via saved session' : 'Authenticated via browser'));
+        console.log(fmt.success('Authenticated via saved session'));
       } else {
-        // Web login failed or was cancelled — fall back to password
-        console.log(chalk.dim('Falling back to password authentication...'));
-        const password = await getPassword({});
+        // 2. Try stored password credentials (from agent mode or -p)
+        const storedPassword = getCredential('EMBLEM_PASSWORD');
 
-        if (!password || password.length < 16) {
-          console.error(fmt.error('Password must be at least 16 characters.'));
-          process.exit(1);
+        if (storedPassword && storedPassword.length >= 16) {
+          try {
+            console.log(chalk.dim('Found saved credentials, authenticating...'));
+            ({ authSdk } = await authenticate(storedPassword, { authUrl, apiUrl }));
+            const sess = authSdk.getSession();
+            if (sess) saveSession(sess);
+            console.log(fmt.success('Authenticated via saved credentials'));
+          } catch {
+            // Stored password failed — continue to web login
+            authSdk = null;
+          }
         }
 
-        console.log(chalk.dim('\nAuthenticating with Agent Hustle...'));
-        ({ authSdk } = await authenticate(password, { authUrl, apiUrl }));
+        // 3. Web login (browser) if nothing else worked
+        if (!authSdk) {
+          const webResult = await webLogin({ authUrl, apiUrl });
+
+          if (webResult) {
+            ({ authSdk } = webResult);
+            console.log(fmt.success(webResult.source === 'saved' ? 'Authenticated via saved session' : 'Authenticated via browser'));
+          } else {
+            // 4. Fall back to password prompt
+            console.log(chalk.dim('Falling back to password authentication...'));
+            const password = await getPassword({});
+
+            if (!password || password.length < 16) {
+              console.error(fmt.error('Password must be at least 16 characters.'));
+              process.exit(1);
+            }
+
+            console.log(chalk.dim('\nAuthenticating with Agent Hustle...'));
+            ({ authSdk } = await authenticate(password, { authUrl, apiUrl }));
+          }
+        }
       }
     }
     const vaultId = authSdk.getSession()?.user?.vaultId;

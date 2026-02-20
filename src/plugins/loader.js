@@ -94,6 +94,20 @@ export class PluginManager {
       }
     }
 
+    // Load x402 payment plugin (XGate discovery + x402 payment signing)
+    if (opts.authSdk) {
+      try {
+        const { createX402Plugin } = await import('./x402.js');
+        const x402Plugin = createX402Plugin({
+          authSdk: opts.authSdk,
+          hustleUrl: process.env.X402_HUSTLE_URL,
+        });
+        await this.register(x402Plugin);
+      } catch {
+        // x402 deps not installed — skip silently
+      }
+    }
+
     // Restore user-installed custom plugins from disk
     await this._loadCustomPlugins();
   }

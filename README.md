@@ -102,6 +102,27 @@ emblemai --agent -p "agent-alice-wallet-001" -m "My addresses?"
 emblemai --agent -p "agent-bob-wallet-002" -m "My addresses?"
 ```
 
+### PAYG Billing
+
+Use `--payg` to configure pay-as-you-go billing. This is a one-time setup -- the setting persists on the server, so you only need to run it once (or when you want to change the token or turn it off). Do not pass `--payg` on every request.
+
+```bash
+# Enable PAYG with SOL as payment token (run once)
+emblemai --payg on SOL
+
+# Enable PAYG, keep the current token
+emblemai --payg on
+
+# Disable PAYG
+emblemai --payg off
+```
+
+Can be combined with `--agent` if needed:
+
+```bash
+emblemai --agent --payg on SOL -m "Show my balances"
+```
+
 ### Reset Conversation
 
 ```bash
@@ -115,7 +136,7 @@ emblemai --reset
 | `-p`, `--password <pw>` | EmblemVault password (min 16 chars) -- skips browser auth |
 | `-m`, `--message <msg>` | Message to send (agent mode) |
 | `-a`, `--agent` | Agent mode (single message, exit) |
-| `--payg on [TOKEN]` | Enable PAYG billing, optionally set payment token (SOL, ETH, etc.) |
+| `--payg on [TOKEN]` | One-time PAYG setup -- enable billing, optionally set payment token (SOL, ETH, etc.) |
 | `--payg off` | Disable PAYG billing |
 | `--restore-auth <path>` | Restore credentials from a backup file and exit |
 | `--debug` | Enable debug output |

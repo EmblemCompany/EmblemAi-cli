@@ -30,7 +30,8 @@ export const COMMANDS = [
   { cmd: '/payment enable|disable', desc: 'Toggle PAYG' },
   { cmd: '/payment token <T>', desc: 'Set payment token' },
   { cmd: '/payment mode <M>', desc: 'Set payment mode' },
-{ cmd: '/secrets', desc: 'Manage encrypted plugin secrets' },
+{ cmd: '/x402', desc: 'x402 payment plugin — search, call, stats, favorites' },
+  { cmd: '/secrets', desc: 'Manage encrypted plugin secrets' },
   { cmd: '/glow on|off', desc: 'Toggle markdown rendering' },
   { cmd: '/log on|off', desc: 'Toggle stream logging to file' },
   { cmd: '/reset', desc: 'Clear conversation' },
@@ -667,6 +668,196 @@ function cmdExit(ctx) {
 }
 
 // ============================================================================
+// x402 Command
+// ============================================================================
+
+async function cmdX402(args, ctx) {
+  const parts = args.trim().split(/\s+/).filter(Boolean);
+  const sub = parts[0] || '';
+
+  // Find the x402 plugin
+  const entry = ctx.pluginManager.plugins.get('hustle-x402');
+  if (!entry || !entry.enabled) {
+    ctx.appendMessage('system', chalk.red('x402 plugin not loaded. Check that @x402/core is installed.'));
+    return { handled: true };
+  }
+  const executors = entry.plugin.executors;
+
+  // /x402 — show status
+  if (!sub) {
+    const lines = [
+      chalk.bold.white('x402 Payment Plugin'),
+      chalk.dim('─'.repeat(40)),
+      `  ${chalk.cyan('Status:')} ${chalk.green('Active')}`,
+      `  ${chalk.cyan('Tools:')} x402_search, x402_agents, x402_call, x402_stats, x402_favorites`,
+      '',
+      chalk.dim('  /x402 search <query>       Search x402 services via XGate'),
+      chalk.dim('  /x402 agents <query>       Search AI agents via XGate'),
+      chalk.dim('  /x402 call <url>           Call an x402 resource with payment'),
+      chalk.dim('  /x402 stats                Ecosystem statistics'),
+      chalk.dim('  /x402 fav                  List favorite services'),
+      chalk.dim('  /x402 fav add <url> [note] Save a favorite with optional note'),
+      chalk.dim('  /x402 fav rm <url>         Remove a favorite'),
+      chalk.dim('  /x402 fav note <url> <txt> Update note on a favorite'),
+    ];
+    ctx.appendMessage('system', '\n' + lines.join('\n') + '\n');
+    return { handled: true };
+  }
+
+  // /x402 search <query>
+  if (sub === 'search') {
+    const query = parts.slice(1).join(' ');
+    ctx.appendMessage('system', chalk.dim(`[x402] Searching services: "${query || '*'}"...`));
+    try {
+      const result = await executors.x402_search({ query, limit: 10 });
+      ctx.appendMessage('system', '```json\n' + JSON.stringify(result, null, 2) + '\n```');
+    } catch (err) {
+      ctx.appendMessage('system', chalk.red(`Error: ${err.message}`));
+    }
+    return { handled: true };
+  }
+
+  // /x402 agents <query>
+  if (sub === 'agents') {
+    const query = parts.slice(1).join(' ');
+    ctx.appendMessage('system', chalk.dim(`[x402] Searching agents: "${query || '*'}"...`));
+    try {
+      const result = await executors.x402_agents({ query, limit: 10 });
+      ctx.appendMessage('system', '```json\n' + JSON.stringify(result, null, 2) + '\n```');
+    } catch (err) {
+      ctx.appendMessage('system', chalk.red(`Error: ${err.message}`));
+    }
+    return { handled: true };
+  }
+
+  // /x402 stats
+  if (sub === 'stats') {
+    ctx.appendMessage('system', chalk.dim('[x402] Fetching ecosystem stats...'));
+    try {
+      const result = await executors.x402_stats({});
+      const lines = Object.entries(result).map(([k, v]) => `  ${chalk.cyan(k)}: ${chalk.white(v)}`);
+      ctx.appendMessage('system', '\n' + chalk.bold.white('x402 Ecosystem') + '\n' + lines.join('\n') + '\n');
+    } catch (err) {
+      ctx.appendMessage('system', chalk.red(`Error: ${err.message}`));
+    }
+    return { handled: true };
+  }
+
+  // /x402 call <url> [json-body]
+  if (sub === 'call') {
+    const url = parts[1];
+    if (!url) {
+      ctx.appendMessage('system', chalk.yellow('Usage: /x402 call <url> [json-body]'));
+      return { handled: true };
+    }
+    const bodyStr = parts.slice(2).join(' ') || undefined;
+    ctx.appendMessage('system', chalk.dim(`[x402] Calling ${url}...`));
+    try {
+      const result = await executors.x402_call({ url, body: bodyStr });
+      ctx.appendMessage('system', '```json\n' + JSON.stringify(result, null, 2) + '\n```');
+    } catch (err) {
+      ctx.appendMessage('system', chalk.red(`Error: ${err.message}`));
+    }
+    return { handled: true };
+  }
+
+  // /x402 fav [add|rm|note] [url] [text]
+  if (sub === 'fav' || sub === 'favorites') {
+    const favSub = parts[1] || '';
+
+    // /x402 fav — list
+    if (!favSub) {
+      try {
+        const result = await executors.x402_favorites({ action: 'list' });
+        if (!result.favorites || result.favorites.length === 0) {
+          ctx.appendMessage('system', chalk.dim('[x402] No favorites saved. Use /x402 fav add <url> [note]'));
+        } else {
+          const lines = [
+            '',
+            chalk.bold.white(`  Favorites (${result.count})`),
+            chalk.dim('  ' + '─'.repeat(50)),
+          ];
+          for (const f of result.favorites) {
+            const tags = f.tags?.length ? chalk.dim(` [${f.tags.join(', ')}]`) : '';
+            const uses = f.useCount > 0 ? chalk.dim(` · ${f.useCount} calls`) : '';
+            lines.push(`  ${chalk.cyan('★')} ${chalk.white(f.name)}${tags}${uses}`);
+            lines.push(`    ${chalk.dim(f.url)}`);
+            if (f.note) lines.push(`    ${chalk.yellow('Note:')} ${f.note}`);
+          }
+          lines.push('');
+          ctx.appendMessage('system', lines.join('\n'));
+        }
+      } catch (err) {
+        ctx.appendMessage('system', chalk.red(`Error: ${err.message}`));
+      }
+      return { handled: true };
+    }
+
+    // /x402 fav add <url> [note...]
+    if (favSub === 'add') {
+      const url = parts[2];
+      if (!url) {
+        ctx.appendMessage('system', chalk.yellow('Usage: /x402 fav add <url> [note]'));
+        return { handled: true };
+      }
+      const note = parts.slice(3).join(' ') || undefined;
+      try {
+        const result = await executors.x402_favorites({ action: 'add', url, note });
+        ctx.appendMessage('system', result.success
+          ? chalk.green(`★ ${result.message}`)
+          : chalk.red(result.error));
+      } catch (err) {
+        ctx.appendMessage('system', chalk.red(`Error: ${err.message}`));
+      }
+      return { handled: true };
+    }
+
+    // /x402 fav rm|remove <url>
+    if (favSub === 'rm' || favSub === 'remove') {
+      const url = parts[2];
+      if (!url) {
+        ctx.appendMessage('system', chalk.yellow('Usage: /x402 fav rm <url>'));
+        return { handled: true };
+      }
+      try {
+        const result = await executors.x402_favorites({ action: 'remove', url });
+        ctx.appendMessage('system', result.success
+          ? chalk.green(result.message)
+          : chalk.red(result.error));
+      } catch (err) {
+        ctx.appendMessage('system', chalk.red(`Error: ${err.message}`));
+      }
+      return { handled: true };
+    }
+
+    // /x402 fav note <url> <text...>
+    if (favSub === 'note') {
+      const url = parts[2];
+      const note = parts.slice(3).join(' ');
+      if (!url || !note) {
+        ctx.appendMessage('system', chalk.yellow('Usage: /x402 fav note <url> <text>'));
+        return { handled: true };
+      }
+      try {
+        const result = await executors.x402_favorites({ action: 'note', url, note });
+        ctx.appendMessage('system', result.success
+          ? chalk.green(result.message)
+          : chalk.red(result.error));
+      } catch (err) {
+        ctx.appendMessage('system', chalk.red(`Error: ${err.message}`));
+      }
+      return { handled: true };
+    }
+
+    ctx.appendMessage('system', chalk.yellow('Usage: /x402 fav [add|rm|note] <url> [text]'));
+    return { handled: true };
+  }
+
+  ctx.appendMessage('system', chalk.yellow('Usage: /x402 [search|agents|call|stats|fav]'));
+  return { handled: true };
+}
+
+// ============================================================================
 // Main Router
 // ============================================================================
 
@@ -727,6 +918,9 @@ export async function processCommand(input, ctx) {
 
     case '/payment':
       return cmdPayment(args, ctx);
+
+    case '/x402':
+      return cmdX402(args, ctx);
 
     case '/secrets':
       return cmdSecrets(args, ctx);
