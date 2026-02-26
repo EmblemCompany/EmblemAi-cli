@@ -281,6 +281,24 @@ export async function getPassword(args = {}) {
   return promptPassword('Enter your EmblemVault password (min 16 chars): ');
 }
 
+/**
+ * Check whether a password source is already available without prompting.
+ *
+ * Sources checked:
+ * - explicit CLI argument
+ * - EMBLEM_PASSWORD environment variable
+ * - encrypted credential in ~/.emblemai/.env
+ *
+ * @param {{ password?: string }} args
+ * @returns {boolean}
+ */
+export function hasAvailablePassword(args = {}) {
+  if (args.password && String(args.password).trim()) return true;
+  if (process.env.EMBLEM_PASSWORD && String(process.env.EMBLEM_PASSWORD).trim()) return true;
+  const stored = getCredential('EMBLEM_PASSWORD');
+  return Boolean(stored && String(stored).trim());
+}
+
 // ── Authentication ───────────────────────────────────────────────────────────
 
 /**
@@ -397,12 +415,15 @@ const WEB_LOGIN_TIMEOUT = 5 * 60 * 1000; // 5 minutes
  * 4. On success, save session and return { authSdk, session }
  * 5. On failure/timeout, return null (caller falls back to password)
  *
- * @param {{ authUrl?: string, apiUrl?: string }} config
+ * @param {{ authUrl?: string, apiUrl?: string, skipBrowser?: boolean, forceBrowser?: boolean }} config
  * @returns {Promise<{ authSdk: object, session: object } | null>}
  */
 export async function webLogin(config = {}) {
+  // forceBrowser means "start a fresh browser auth flow" and ignore saved session.
+  const shouldCheckSavedSession = !config.forceBrowser;
+
   // 1. Check for saved session
-  const existing = loadSession();
+  const existing = shouldCheckSavedSession ? loadSession() : null;
 
   if (existing) {
     if (!isSessionExpired(existing)) {

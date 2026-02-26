@@ -29,15 +29,17 @@ EmblemAI v3 supports two authentication modes: **browser auth** for interactive 
 
 ### Browser Auth (Interactive Mode)
 
-When you run `emblemai` without `-p`, the CLI:
+When you run `emblemai` in interactive mode, the CLI:
 
-1. Checks `~/.emblemai/session.json` for a saved session
-2. If a valid (non-expired) session exists, restores it instantly -- no login needed
-3. If no session, starts a local server on `127.0.0.1:18247` and opens your browser
-4. You authenticate via the EmblemVault auth modal in the browser
-5. The session JWT is captured, saved to disk, and the CLI proceeds
-6. If the browser can't open, the URL is printed for manual copy-paste
-7. If authentication times out (5 minutes), falls back to a password prompt
+1. Checks for a password source first (`EMBLEM_PASSWORD` env or encrypted `~/.emblemai/.env`)
+2. If found, authenticates with password immediately (browser is not opened)
+3. Otherwise checks `~/.emblemai/session.json` for a saved session
+4. If a valid (non-expired) session exists, restores it instantly -- no login needed
+5. If no session, starts a local server on `127.0.0.1:18247` and opens your browser
+6. You authenticate via the EmblemVault auth modal in the browser
+7. The session JWT is captured, saved to disk, and the CLI proceeds
+8. If the browser can't open, the URL is printed for manual copy-paste
+9. If authentication times out (5 minutes), falls back to a password prompt
 
 ### Password Auth (Agent Mode and `-p` flag)
 
@@ -54,6 +56,7 @@ When you run `emblemai` without `-p`, the CLI:
 | Method | How to use | Priority |
 |--------|-----------|----------|
 | CLI argument | `emblemai -p "your-password-16-chars-min"` | 1 (highest, stored encrypted) |
+| CLI flag (prompt) | `emblemai -p` | 1 (force password mode, prompt interactively) |
 | Environment variable | `export EMBLEM_PASSWORD="your-password"` | 2 (not stored) |
 | Encrypted credential | dotenvx-encrypted `~/.emblemai/.env` | 3 |
 | Auto-generate (agent mode) | Automatic on first run | 4 |
@@ -79,6 +82,7 @@ Readline-based interactive mode with streaming, glow rendering, and slash comman
 ```bash
 emblemai              # Browser auth (recommended)
 emblemai -p "your-password"  # Password auth (skips browser)
+emblemai -p           # Password prompt mode (skips browser)
 ```
 
 ### Agent Mode
@@ -114,7 +118,7 @@ This places the credential files in `~/.emblemai/` so you can authenticate immed
 
 | Flag | Alias | Description |
 |------|-------|-------------|
-| `--password <pw>` | `-p` | Authentication password (16+ chars) -- skips browser auth |
+| `--password [pw]` | `-p` | Force password mode; optionally provide password (16+ chars). Skips browser auth |
 | `--message <msg>` | `-m` | Message for agent mode |
 | `--agent` | `-a` | Run in agent mode (single-shot, password auth only) |
 | `--restore-auth <path>` | | Restore credentials from backup file and exit |

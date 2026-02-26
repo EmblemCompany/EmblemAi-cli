@@ -29,12 +29,14 @@ EmblemAI v3 supports two authentication methods:
 
 ### Browser Auth (Interactive Mode)
 
-When you run `emblemai` without `-p`, the CLI:
+When you run `emblemai` (without password mode), the CLI:
 
-1. Checks for a saved session in `~/.emblemai/session.json`
-2. If no valid session, opens your browser to authenticate via the EmblemVault auth modal
-3. Captures the JWT session and saves it locally
-4. On subsequent runs, restores the saved session automatically (no login needed until it expires)
+1. Checks for a password source first (`EMBLEM_PASSWORD` env or encrypted `~/.emblemai/.env`)
+2. If available, authenticates with password and does not open the browser
+3. Otherwise checks for a saved session in `~/.emblemai/session.json`
+4. If no valid session, opens your browser to authenticate via the EmblemVault auth modal
+5. Captures the JWT session and saves it locally
+6. On subsequent runs, restores the saved session automatically (no login needed until it expires)
 
 If the browser fails to open, the URL is printed for manual copy-paste. If authentication times out (5 minutes), falls back to password prompt.
 
@@ -59,7 +61,9 @@ Readline-based interactive mode with streaming AI responses, glow markdown rende
 
 ```bash
 emblemai              # Browser auth (recommended)
+emblemai --web        # Force fresh browser auth (ignore saved session/password)
 emblemai -p "your-password"  # Password auth
+emblemai -p           # Force password prompt (never opens browser)
 ```
 
 ### Agent Mode
@@ -133,7 +137,8 @@ emblemai --reset
 
 | Flag | Description |
 |------|-------------|
-| `-p`, `--password <pw>` | EmblemVault password (min 16 chars) -- skips browser auth |
+| `-p`, `--password [pw]` | Force password mode; optionally provide password (min 16 chars). Skips browser auth |
+| `--web`, `--browser` | Force browser authentication (skip saved session and stored password) |
 | `-m`, `--message <msg>` | Message to send (agent mode) |
 | `-a`, `--agent` | Agent mode (single message, exit) |
 | `--payg on [TOKEN]` | One-time PAYG setup -- enable billing, optionally set payment token (SOL, ETH, etc.) |

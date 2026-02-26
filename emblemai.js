@@ -24,7 +24,7 @@ import path from 'path';
 import os from 'os';
 import readline from 'readline';
 import chalk from 'chalk';
-import { getPassword, getCredential, authenticate, webLogin, promptPassword, authMenu, readPluginSecrets, migrateLegacyCredentials } from './src/auth.js';
+import { getPassword, getCredential, authenticate, webLogin, promptPassword, authMenu, readPluginSecrets, migrateLegacyCredentials, hasAvailablePassword } from './src/auth.js';
 import { saveSession } from './src/session-store.js';
 import { processCommand } from './src/commands.js';
 import { PluginManager } from './src/plugins/loader.js';
@@ -102,7 +102,7 @@ const args = process.argv.slice(2);
 const getArg = (flags) => {
   for (const flag of flags) {
     const index = args.indexOf(flag);
-    if (index !== -1 && args[index + 1]) return args[index + 1];
+    if (index !== -1 && args[index + 1] && !args[index + 1].startsWith('-')) return args[index + 1];
   }
   return null;
 };
@@ -123,6 +123,8 @@ const paygArg = (() => {
   return null;
 })();
 const passwordArg = getArg(['--password', '-p']);
+const forcePasswordMode = hasFlag(['--password', '-p']);
+const forceBrowserMode = hasFlag(['--browser', '--web']);
 const messageArg = getArg(['--message', '-m']);
 const hustleUrlArg = getArg(['--hustle-url']);
 const authUrlArg = getArg(['--auth-url']);
@@ -314,34 +316,45 @@ async function main() {
     // ── Authenticate ──────────────────────────────────────────────────────
     let authSdk;
 
-    if (isAgentMode || isReset || passwordArg) {
-      // Agent mode, reset, or explicit -p flag: password auth (unchanged)
-      const password = await getPassword({ password: passwordArg, isAgentMode: isAgentMode || isReset });
+    // Determine authentication strategy
+    const requiresPasswordAuth = isAgentMode || isReset;  // These modes need password to work
+    const userRequestedPassword = forcePasswordMode;       // Explicit -p flag
+    const hasStoredCredentials = hasAvailablePassword({ password: passwordArg });
+
+    const usePasswordAuth = !forceBrowserMode && (
+      requiresPasswordAuth || userRequestedPassword || hasStoredCredentials
+    );
+
+    if (usePasswordAuth) {
+      const password = await getPassword({ password: passwordArg, isAgentMode: requiresPasswordAuth });
 
       if (!password || password.length < 16) {
         console.error(fmt.error('Password must be at least 16 characters.'));
         process.exit(1);
       }
 
-      if (!isAgentMode && !isReset) console.log(chalk.dim('\nAuthenticating with Agent Hustle...'));
+      if (!requiresPasswordAuth) console.log(chalk.dim('\nAuthenticating with Agent Hustle...'));
 
       ({ authSdk } = await authenticate(password, { authUrl, apiUrl }));
       // Save session so the ElizaOS plugin can pick it up from ~/.emblemai/session.json
       const sess = authSdk.getSession();
       if (sess) saveSession(sess);
     } else {
-      // Interactive mode: try saved credentials before web login
-      console.log(chalk.dim('\nChecking for saved session...'));
+      if (forceBrowserMode) {
+        console.log(chalk.dim('\nForcing browser authentication...'));
+      } else {
+        console.log(chalk.dim('\nChecking for saved session...'));
+      }
 
-      // 1. Try saved session (session.json)
-      const result = await webLogin({ authUrl, apiUrl, skipBrowser: true });
+      // 1. Try saved session (session.json) unless browser mode is forced
+      const result = forceBrowserMode ? null : await webLogin({ authUrl, apiUrl, skipBrowser: true });
 
       if (result) {
         ({ authSdk } = result);
         console.log(fmt.success('Authenticated via saved session'));
       } else {
         // 2. Try stored password credentials (from agent mode or -p)
-        const storedPassword = getCredential('EMBLEM_PASSWORD');
+        const storedPassword = forceBrowserMode ? null : getCredential('EMBLEM_PASSWORD');
 
         if (storedPassword && storedPassword.length >= 16) {
           try {
@@ -358,7 +371,7 @@ async function main() {
 
         // 3. Web login (browser) if nothing else worked
         if (!authSdk) {
-          const webResult = await webLogin({ authUrl, apiUrl });
+          const webResult = await webLogin({ authUrl, apiUrl, forceBrowser: forceBrowserMode });
 
           if (webResult) {
             ({ authSdk } = webResult);
