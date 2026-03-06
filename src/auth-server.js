@@ -7,6 +7,24 @@
  */
 
 import http from 'http';
+import { readFileSync } from 'fs';
+import { createRequire } from 'module';
+import { dirname, join } from 'path';
+
+// Resolve the local SDK bundle so the browser loads the exact same version the CLI uses.
+let SDK_BUNDLE = null;
+let SDK_VERSION = 'unknown';
+try {
+  const require = createRequire(import.meta.url);
+  const sdkEntry = require.resolve('@emblemvault/auth-sdk');
+  const sdkRoot = join(dirname(sdkEntry), '..');
+  const sdkMinPath = join(sdkRoot, 'dist', 'emblem-auth.min.js');
+  SDK_BUNDLE = readFileSync(sdkMinPath, 'utf8');
+  SDK_VERSION = JSON.parse(readFileSync(join(sdkRoot, 'package.json'), 'utf8')).version;
+  console.log(`[auth-server] Local SDK bundle loaded (v${SDK_VERSION})`);
+} catch (err) {
+  console.warn(`[auth-server] Could not load local SDK bundle: ${err.message} — will use CDN fallback`);
+}
 
 const DEFAULT_PORT = 18247;
 const MAX_PORT_ATTEMPTS = 10;
@@ -43,14 +61,23 @@ export function startAuthServer(config, callbacks) {
         }
 
         const url = new URL(req.url || '/', `http://localhost:${currentPort}`);
+        console.log(`[auth-server] ${req.method} ${url.pathname}`);
+
+        // Serve the local SDK bundle
+        if (req.method === 'GET' && url.pathname === '/sdk.js' && SDK_BUNDLE) {
+          res.writeHead(200, { 'Content-Type': 'application/javascript' });
+          res.end(SDK_BUNDLE);
+          return;
+        }
 
         // Serve the auth page
         if (req.method === 'GET' && url.pathname === '/auth') {
-          const html = generateAuthPage({
+           const html = generateAuthPage({
             appId: config.appId || 'emblem-agent-wallet',
             authUrl: config.authUrl || 'https://auth.emblemvault.ai',
             apiUrl: config.apiUrl || 'https://api.emblemvault.ai',
             callbackUrl: `http://localhost:${currentPort}/callback`,
+            hasLocalSdk: !!SDK_BUNDLE,
           });
 
           res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -70,6 +97,7 @@ export function startAuthServer(config, callbacks) {
             try {
               const data = JSON.parse(body);
               const session = data.session;
+              console.log(`[auth-server] Callback received — has authToken: ${!!session?.authToken}, has user: ${!!session?.user}`);
 
               if (!session?.authToken || !session?.user) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -82,6 +110,7 @@ export function startAuthServer(config, callbacks) {
               res.end(JSON.stringify({ success: true }));
 
               callbacks.onSession(session);
+              console.log(`[auth-server] Session delivered to CLI — closing server in 1s`);
 
               setTimeout(() => {
                 server.close();
@@ -112,6 +141,7 @@ export function startAuthServer(config, callbacks) {
       });
 
       server.listen(currentPort, '127.0.0.1', () => {
+        console.log(`[auth-server] Listening on http://localhost:${currentPort} (SDK: ${SDK_BUNDLE ? 'local v' + SDK_VERSION : 'CDN fallback'})`);
         resolve({
           url: `http://localhost:${currentPort}/auth`,
           port: currentPort,
@@ -234,6 +264,7 @@ function generateAuthPage(config) {
     }
 
     async function sendSessionToCLI(session) {
+      console.log('[auth-page] onSuccess fired — sending session to CLI callback');
       setStatus('Sending to CLI...', 'loading');
       try {
         const response = await fetch(CONFIG.callbackUrl, {
@@ -242,8 +273,10 @@ function generateAuthPage(config) {
           body: JSON.stringify({ session })
         });
         if (!response.ok) throw new Error('Failed to send session to CLI');
+        console.log('[auth-page] Session sent successfully');
         setStatus('Connected! You can close this window.', 'success');
       } catch (err) {
+        console.error('[auth-page] Failed to send session:', err);
         setStatus('Failed to connect to CLI: ' + err.message, 'error');
       }
     }
@@ -251,24 +284,46 @@ function generateAuthPage(config) {
     async function startAuth() {
       try {
         let EmblemAuthSDK;
-        const cdnUrls = [
-          'https://esm.sh/@emblemvault/auth-sdk@2.1.0',
-          'https://cdn.skypack.dev/@emblemvault/auth-sdk@2.1.0',
-          'https://unpkg.com/@emblemvault/auth-sdk@2.1.0/dist/index.mjs'
-        ];
+        console.log('[auth-page] Starting auth — local SDK available:', ${config.hasLocalSdk ? 'true' : 'false'});
 
-        for (const url of cdnUrls) {
+        // Prefer the local SDK bundle served by the CLI (exact version match)
+        if (${config.hasLocalSdk ? 'true' : 'false'}) {
           try {
-            const module = await import(url);
-            EmblemAuthSDK = module.EmblemAuthSDK || module.default?.EmblemAuthSDK;
-            if (EmblemAuthSDK) break;
+            const script = document.createElement('script');
+            script.src = '/sdk.js';
+            await new Promise((resolve, reject) => {
+              script.onload = resolve;
+              script.onerror = reject;
+              document.head.appendChild(script);
+            });
+            EmblemAuthSDK = window.EmblemAuth?.EmblemAuthSDK;
+            if (EmblemAuthSDK) console.log('[auth-page] Loaded local SDK bundle');
           } catch (e) {
-            console.warn('Failed to load from ' + url + ':', e.message);
+            console.warn('[auth-page] Failed to load local SDK:', e.message);
           }
         }
 
-        if (!EmblemAuthSDK) throw new Error('Could not load auth SDK from any CDN');
+        // Fallback to CDN
+        if (!EmblemAuthSDK) {
+          const cdnUrls = [
+            'https://esm.sh/@emblemvault/auth-sdk@latest',
+            'https://cdn.skypack.dev/@emblemvault/auth-sdk@latest',
+            'https://unpkg.com/@emblemvault/auth-sdk@latest/dist/index.mjs'
+          ];
+          for (const url of cdnUrls) {
+            try {
+              const module = await import(url);
+              EmblemAuthSDK = module.EmblemAuthSDK || module.default?.EmblemAuthSDK;
+              if (EmblemAuthSDK) break;
+            } catch (e) {
+              console.warn('Failed to load from ' + url + ':', e.message);
+            }
+          }
+        }
 
+        if (!EmblemAuthSDK) throw new Error('Could not load auth SDK');
+
+        console.log('[auth-page] SDK loaded — opening auth modal');
         const sdk = new EmblemAuthSDK({
           appId: CONFIG.appId,
           authUrl: CONFIG.authUrl,
