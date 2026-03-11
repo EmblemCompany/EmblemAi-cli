@@ -131,12 +131,13 @@ export function startAuthServer(config, callbacks) {
       });
 
       server.on('error', (err) => {
-        if (err.code === 'EADDRINUSE' && attempts < MAX_PORT_ATTEMPTS) {
+        const error = /** @type {NodeJS.ErrnoException} */ (err);
+        if (error.code === 'EADDRINUSE' && attempts < MAX_PORT_ATTEMPTS) {
           attempts++;
           currentPort++;
           tryStartServer();
         } else {
-          reject(new Error(`Failed to start auth server: ${err.message}`));
+          reject(new Error(`Failed to start auth server: ${error.message}`));
         }
       });
 
@@ -171,7 +172,7 @@ function escapeHtml(str) {
 /**
  * Generate the HTML auth page.
  *
- * @param {{ appId: string, authUrl: string, apiUrl: string, callbackUrl: string }} config
+ * @param {{ appId: string, authUrl: string, apiUrl: string, callbackUrl: string, hasLocalSdk: boolean }} config
  * @returns {string}
  */
 function generateAuthPage(config) {

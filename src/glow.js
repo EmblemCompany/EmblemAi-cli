@@ -61,6 +61,9 @@ function formatHeader(level, content) {
  */
 function extractHeaders(markdown) {
   const lines = markdown.split('\n');
+  /**
+   * @type {Array<{ type: 'header'|'content', value: string }>}
+   */
   const segments = [];
   let contentBuf = [];
   let inCode = false;

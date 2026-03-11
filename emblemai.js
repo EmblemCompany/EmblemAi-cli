@@ -461,7 +461,9 @@ async function main() {
 
       try {
         history.messages.push({ role: 'user', content: messageArg });
-        const response = await client.chat(buildMessages(history.messages, pluginManager));
+        const res = await client.chat(buildMessages(history.messages, pluginManager), { rawResponse: false });
+        // @TODO: Remove this type assertion after next SDK version bump
+        const response = /** @type {import('hustle-incognito').ProcessedResponse} */ (res);
         clearInterval(progressInterval);
         console.log('');
         history.messages.push({ role: 'assistant', content: response.content });
@@ -706,12 +708,13 @@ async function main() {
         console.log(fmt.thinking());
         try {
           const chatMessages = buildMessages(msgs, pluginManager);
-          const chatOptions = {};
+          const chatOptions = { rawResponse: false };
           if (settings.model) chatOptions.model = settings.model;
           if (settings.selectedTools.length > 0) chatOptions.selectedToolCategories = settings.selectedTools;
           else if (lastIntentContext) chatOptions.intentContext = lastIntentContext;
 
-          const result = await client.chat(chatMessages, chatOptions);
+          const res = await client.chat(chatMessages, chatOptions);
+          const result = /** @type {import('hustle-incognito').ProcessedResponse} */ (res);
           if (result.intentContext?.intentContext) lastIntentContext = result.intentContext.intentContext;
           response = result.content;
           log('response', { len: response.length, toolCalls: result.toolCalls?.length || 0 });

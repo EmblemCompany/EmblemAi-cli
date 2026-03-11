@@ -664,7 +664,7 @@ function cmdExit(ctx) {
   if (ctx.tui) {
     ctx.tui.destroy();
   }
-  process.exit(0);
+  return { handled: true, logout: true };
 }
 
 // ============================================================================
@@ -866,7 +866,7 @@ async function cmdX402(args, ctx) {
  *
  * @param {string} input - The raw user input (e.g. "/tools add foo")
  * @param {object} ctx - Runtime context
- * @returns {Promise<{ handled: boolean }>}
+ * @returns {Promise<{ handled: boolean, logout?: boolean }>}
  */
 export async function processCommand(input, ctx) {
   const trimmed = input.trim();

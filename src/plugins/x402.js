@@ -34,11 +34,36 @@ const DEFAULT_HUSTLE_URL = 'https://agenthustle.ai';
 const FAVORITES_FILE = path.join(os.homedir(), '.emblemai', 'x402-favorites.json');
 
 /**
- * @param {{ authSdk: object, hustleUrl?: string }} config
- * @returns {import('hustle-incognito').HustlePlugin}
+ * @typedef {Record<string, unknown> & { params?: Record<string, unknown>, emblemJwt?: string }} CallBody
  */
-// ── Favorites persistence ──────────────────────────────────────────────────
 
+/**
+ * Parse a JSON string into a mutable object body.
+ * Non-object payloads fall back to an empty object.
+ *
+ * @param {string | undefined} value
+ * @returns {CallBody}
+ */
+function parseCallBody(value) {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return /** @type {CallBody} */ (parsed);
+    }
+  } catch {}
+
+  return {};
+}
+
+
+// ── Favorites persistence ──────────────────────────────────────────────────
+/**
+ * @returns {import('hustle-incognito').HustlePlugin | {}}
+ */
 function loadFavorites() {
   try {
     if (fs.existsSync(FAVORITES_FILE)) {
@@ -262,10 +287,7 @@ export function createX402Plugin(config = {}) {
   async function executeCall(args) {
     const url = args.url;
     const method = (args.method || 'POST').toUpperCase();
-    let bodyObj = {};
-    if (args.body) {
-      try { bodyObj = JSON.parse(args.body); } catch { bodyObj = {}; }
-    }
+    const bodyObj = parseCallBody(args.body);
 
     // Auth passthrough: ONLY for our own Hustle server
     if (args.passAuth === 'true' && isLocalServer(url)) {
@@ -273,8 +295,8 @@ export function createX402Plugin(config = {}) {
         const session = config.authSdk.getSession();
         const jwt = session?.authToken || session?.accessToken;
         if (jwt) {
-          if (!bodyObj.params) bodyObj.params = {};
-          if (typeof bodyObj.params === 'object') {
+          if (!bodyObj.params || Array.isArray(bodyObj.params)) bodyObj.params = {};
+          if (bodyObj.params && typeof bodyObj.params === 'object') {
             bodyObj.params.emblemJwt = jwt;
           } else {
             bodyObj.emblemJwt = jwt;
