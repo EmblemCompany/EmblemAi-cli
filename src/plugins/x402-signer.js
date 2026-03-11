@@ -8,6 +8,44 @@
  */
 
 /**
+ * Narrow an unknown SDK response to Uint8Array.
+ *
+ * @param {unknown} value
+ * @param {string} methodName
+ * @returns {Uint8Array}
+ */
+function expectUint8Array(value, methodName) {
+  if (value instanceof Uint8Array) {
+    return value;
+  }
+  throw new TypeError(`${methodName} returned a non-binary value`);
+}
+
+/**
+ * Brand a 64-byte signature for @solana/signers types.
+ *
+ * @param {Uint8Array} value
+ * @returns {import('@solana/keys').SignatureBytes}
+ */
+function toSignatureBytes(value) {
+  if (value.length !== 64) {
+    throw new TypeError(`Expected 64 signature bytes, received ${value.length}`);
+  }
+  return /** @type {import('@solana/keys').SignatureBytes} */ (value);
+}
+
+/**
+ * Build a SignatureDictionary keyed by the signer's branded Solana address.
+ *
+ * @param {import('@solana/addresses').Address} address
+ * @param {import('@solana/keys').SignatureBytes} signature
+ * @returns {import('@solana/signers').SignatureDictionary}
+ */
+function createSignatureDictionary(address, signature) {
+  return /** @type {import('@solana/signers').SignatureDictionary} */ ({ [address]: signature });
+}
+
+/**
  * Create an EVM signer for x402 payments from auth-sdk.
  *
  * @param {import('@emblemvault/auth-sdk').EmblemAuthSDK} authSdk
@@ -36,16 +74,18 @@ export async function createSvmSigner(authSdk) {
 
   const solanaSigner = await authSdk.toSolanaWeb3Signer();
 
-  return {
+  /** @type {import('@x402/svm').ClientSvmSigner & import('@solana/signers').MessagePartialSigner} */
+  const signer = {
     address: solAddr,
 
-    // MessagePartialSigner: sign raw message bytes (off-chain attestation)
+    // Some @x402/svm runtime paths adapt client signers through a message-signing interface.
     async signMessages(messages) {
+      /** @type {import('@solana/signers').SignatureDictionary[]} */
       const results = [];
       for (const msg of messages) {
-        const bytes = msg.content instanceof Uint8Array ? msg.content : new Uint8Array(msg.content || msg);
-        const sig = await solanaSigner.signMessage(bytes);
-        results.push({ [solAddr]: sig });
+        const bytes = msg.content instanceof Uint8Array ? msg.content : new Uint8Array(msg.content);
+        const sig = toSignatureBytes(await solanaSigner.signMessage(bytes));
+        results.push(createSignatureDictionary(solAddr, sig));
       }
       return results;
     },
@@ -54,6 +94,7 @@ export async function createSvmSigner(authSdk) {
     // Converts @solana/kit compiled transaction → Solana wire format → auth-sdk signTransaction.
     // Returns SignatureDictionary[] — plain objects { [address]: SignatureBytes }
     async signTransactions(transactions) {
+      /** @type {import('@solana/signers').SignatureDictionary[]} */
       const results = [];
       for (const tx of transactions) {
         const messageBytes = tx.messageBytes instanceof Uint8Array
@@ -75,7 +116,10 @@ export async function createSvmSigner(authSdk) {
         const b64Wire = Buffer.from(wire).toString('base64');
 
         // Sign via auth-sdk (calls /sign-solana-transaction internally)
-        const signedBytes = await solanaSigner.signTransaction(b64Wire);
+        const signedBytes = expectUint8Array(
+          await solanaSigner.signTransaction(b64Wire),
+          'solanaSigner.signTransaction',
+        );
 
         // signedBytes is a Uint8Array of the full signed wire format.
         // Extract our signature from the signature slots.
@@ -93,9 +137,11 @@ export async function createSvmSigner(authSdk) {
           throw new Error('signTransaction returned no valid signature in signed transaction');
         }
 
-        results.push({ [solAddr]: ourSig });
+        results.push(createSignatureDictionary(solAddr, toSignatureBytes(ourSig)));
       }
       return results;
     },
   };
+
+  return signer;
 }

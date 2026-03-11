@@ -105,7 +105,7 @@ export function readPluginSecrets() {
 /**
  * Write plugin secrets to ~/.emblemai/secrets.json.
  *
- * @param {Record<string, { ciphertext: string, dataToEncryptHash: string }>} secrets
+ * @param {Record<string, { ciphertext: string, dataToEncryptHash: string }> | {}} secrets
  */
 export function writePluginSecrets(secrets) {
   fs.mkdirSync(EMBLEMAI_DIR, { recursive: true });
@@ -128,7 +128,10 @@ export function readCredentialFile() {
 
 /**
  * Compatibility wrapper — routes password to dotenvx and secrets to JSON.
- * @param {Record<string, unknown>} data - Fields to merge (password, secrets)
+ * @param {{
+ *   password?: string,
+ *   secrets?: Record<string, { ciphertext: string, dataToEncryptHash: string }>
+ * }} data - Fields to merge (password, secrets)
  */
 export function writeCredentialFile(data) {
   if (data.password) {
@@ -254,31 +257,36 @@ export function promptPassword(question) {
  * 5. Interactive prompt
  *
  * @param {{ password?: string, isAgentMode?: boolean }} args
- * @returns {Promise<string>} The resolved password
+ * @returns {Promise<{ password: string, source: string, generated?: boolean, stored?: boolean }>} The resolved password + source metadata
  */
 export async function getPassword(args = {}) {
   // 1. Explicit argument — store encrypted
   if (args.password) {
     setCredential('EMBLEM_PASSWORD', args.password);
-    return args.password;
+    return { password: args.password, source: 'arg' };
   }
 
   // 2. Environment variable
-  if (process.env.EMBLEM_PASSWORD) return process.env.EMBLEM_PASSWORD;
+  if (process.env.EMBLEM_PASSWORD) {
+    return { password: process.env.EMBLEM_PASSWORD, source: 'env' };
+  }
 
   // 3. Encrypted credential file
   const stored = getCredential('EMBLEM_PASSWORD');
-  if (stored) return stored;
+  if (stored) {
+    return { password: stored, source: 'stored', stored: true };
+  }
 
   // 4. Agent mode — auto-generate password
   if (args.isAgentMode) {
     const generated = crypto.randomBytes(32).toString('base64url');
     setCredential('EMBLEM_PASSWORD', generated);
-    return generated;
+    return { password: generated, source: 'generated', generated: true };
   }
 
   // 5. Interactive prompt
-  return promptPassword('Enter your EmblemVault password (min 16 chars): ');
+  const prompted = await promptPassword('Enter your EmblemVault password (min 16 chars): ');
+  return { password: prompted, source: 'prompt' };
 }
 
 // ── Authentication ───────────────────────────────────────────────────────────
@@ -319,44 +327,78 @@ export async function authenticate(password, config = {}) {
 export function polyfillBrowserGlobals() {
   if (typeof globalThis.window !== 'undefined') return;
 
-  globalThis.window = {
-    localStorage: {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-      clear: () => {},
-    },
-    sessionStorage: {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-      clear: () => {},
-    },
-    location: {
-      href: 'http://localhost',
-      origin: 'http://localhost',
-      protocol: 'http:',
-      host: 'localhost',
-      hostname: 'localhost',
-      port: '',
-      pathname: '/',
-      search: '',
-      hash: '',
-    },
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => true,
-    navigator: { userAgent: 'Node.js' },
+  /** @type {Storage} */
+  const storage = {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+    clear: () => {},
+    key: () => null,
+    length: 0,
   };
-  globalThis.document = {
+
+  /** @type {Location} */
+  const location = /** @type {Location} */ (/** @type {unknown} */ ({
+    href: 'http://localhost',
+    origin: 'http://localhost',
+    protocol: 'http:',
+    host: 'localhost',
+    hostname: 'localhost',
+    port: '',
+    pathname: '/',
+    search: '',
+    hash: '',
+    ancestorOrigins: /** @type {DOMStringList} */ (/** @type {unknown} */ ({
+      length: 0,
+      contains: () => false,
+      item: () => null,
+    })),
+    assign: () => {},
+    reload: () => {},
+    replace: () => {},
+  }));
+
+  /** @type {Navigator} */
+  const navigator = /** @type {Navigator} */ (/** @type {unknown} */ ({
+    userAgent: 'Node.js',
+  }));
+
+  /** @type {NodeListOf<Element>} */
+  const emptyNodeList = /** @type {NodeListOf<Element>} */ (
+    /** @type {unknown} */ ({
+      length: 0,
+      item: () => null,
+      forEach: () => {},
+      [Symbol.iterator]: function* () {},
+    })
+  );
+
+  /** @type {Document} */
+  const document = /** @type {Document} */ (/** @type {unknown} */ ({
     addEventListener: () => {},
     removeEventListener: () => {},
-    createElement: () => ({}),
+    createElement: () => /** @type {HTMLElement} */ (/** @type {unknown} */ ({})),
     querySelector: () => null,
-    querySelectorAll: () => [],
-  };
-  globalThis.localStorage = globalThis.window.localStorage;
-  globalThis.sessionStorage = globalThis.window.sessionStorage;
+    querySelectorAll: () => emptyNodeList,
+  }));
+
+  /** @type {Window & typeof globalThis} */
+  const window = /** @type {Window & typeof globalThis} */ (
+    /** @type {unknown} */ ({
+      localStorage: storage,
+      sessionStorage: storage,
+      location,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => true,
+      navigator,
+    })
+  );
+
+  globalThis.window = window;
+  globalThis.document = document;
+  globalThis.localStorage = window.localStorage;
+  globalThis.sessionStorage = window.sessionStorage;
 }
 
 // ── Authenticate with Existing Session ──────────────────────────────────────
@@ -397,8 +439,8 @@ const WEB_LOGIN_TIMEOUT = 5 * 60 * 1000; // 5 minutes
  * 4. On success, save session and return { authSdk, session }
  * 5. On failure/timeout, return null (caller falls back to password)
  *
- * @param {{ authUrl?: string, apiUrl?: string }} config
- * @returns {Promise<{ authSdk: object, session: object } | null>}
+ * @param {{ authUrl?: string, apiUrl?: string, skipBrowser?: boolean }} config
+ * @returns {Promise<{ authSdk: object, session: object, source: 'saved' | 'browser' } | null>}
  */
 export async function webLogin(config = {}) {
   // 1. Check for saved session
@@ -515,7 +557,7 @@ export async function authMenu(authSdk, promptFn) {
   console.log('  5. EVM Address');
   console.log('  6. Solana Address');
   console.log('  7. BTC Addresses');
-  console.log('  8. Backup Agent Auth');
+  console.log('  8. Backup Agent Auth (recommended after password auth setup)');
   console.log('  9. Logout');
   console.log('  0. Back');
   console.log('');

@@ -316,11 +316,19 @@ async function main() {
 
     if (isAgentMode || isReset || passwordArg) {
       // Agent mode, reset, or explicit -p flag: password auth (unchanged)
-      const password = await getPassword({ password: passwordArg, isAgentMode: isAgentMode || isReset });
+      const passwordResult = await getPassword({ password: passwordArg, isAgentMode: isAgentMode || isReset });
+      const password = passwordResult.password;
 
       if (!password || password.length < 16) {
         console.error(fmt.error('Password must be at least 16 characters.'));
         process.exit(1);
+      }
+
+      if (passwordResult.generated) {
+        const out = isAgentMode ? process.stderr : process.stdout;
+        out.write(chalk.yellow('\n⚠ Password auth created a new wallet identity on this machine.\n'));
+        out.write(chalk.dim('  Your local credentials were saved for reuse. If this machine is lost and you have no backup, you may lose wallet access.\n'));
+        out.write(chalk.dim('  Back up now with /auth → Backup Agent Auth, or restore later with emblemai --restore-auth <path>.\n\n'));
       }
 
       if (!isAgentMode && !isReset) console.log(chalk.dim('\nAuthenticating with Agent Hustle...'));
@@ -366,7 +374,8 @@ async function main() {
           } else {
             // 4. Fall back to password prompt
             console.log(chalk.dim('Falling back to password authentication...'));
-            const password = await getPassword({});
+            const passwordResult = await getPassword({});
+            const password = passwordResult.password;
 
             if (!password || password.length < 16) {
               console.error(fmt.error('Password must be at least 16 characters.'));
@@ -461,7 +470,8 @@ async function main() {
 
       try {
         history.messages.push({ role: 'user', content: messageArg });
-        const response = await client.chat(buildMessages(history.messages, pluginManager));
+        const res = await client.chat(buildMessages(history.messages, pluginManager), { rawResponse: false });
+        const response = /** @type {import('hustle-incognito').ProcessedResponse} */ (res);
         clearInterval(progressInterval);
         console.log('');
         history.messages.push({ role: 'assistant', content: response.content });
@@ -706,12 +716,13 @@ async function main() {
         console.log(fmt.thinking());
         try {
           const chatMessages = buildMessages(msgs, pluginManager);
-          const chatOptions = {};
+          const chatOptions = { rawResponse: false };
           if (settings.model) chatOptions.model = settings.model;
           if (settings.selectedTools.length > 0) chatOptions.selectedToolCategories = settings.selectedTools;
           else if (lastIntentContext) chatOptions.intentContext = lastIntentContext;
 
-          const result = await client.chat(chatMessages, chatOptions);
+          const res = await client.chat(chatMessages, chatOptions);
+          const result = /** @type {import('hustle-incognito').ProcessedResponse} */ (res);
           if (result.intentContext?.intentContext) lastIntentContext = result.intentContext.intentContext;
           response = result.content;
           log('response', { len: response.length, toolCalls: result.toolCalls?.length || 0 });

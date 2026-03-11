@@ -332,7 +332,7 @@ export class PluginManager {
   /**
    * Enable a previously disabled plugin.
    * @param {string} name
-   * @returns {boolean} Whether the operation succeeded
+   * @returns {Promise<boolean>} Whether the operation succeeded
    */
   async enable(name) {
     const entry = this.plugins.get(name);
@@ -351,7 +351,7 @@ export class PluginManager {
   /**
    * Disable a plugin without removing it.
    * @param {string} name
-   * @returns {boolean} Whether the operation succeeded
+   * @returns {Promise<boolean>} Whether the operation succeeded
    */
   async disable(name) {
     const entry = this.plugins.get(name);

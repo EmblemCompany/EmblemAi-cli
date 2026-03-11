@@ -10,6 +10,14 @@ Each agent gets a deterministic wallet derived from a password. No seed phrases,
 npm install -g @emblemvault/agentwallet
 ```
 
+## Development
+
+Use TypeScript's checker against the JavaScript source and JSDoc annotations:
+
+```bash
+npm run typecheck
+```
+
 ## Quick Start
 
 ```bash
@@ -50,6 +58,9 @@ Agent mode always uses password authentication:
 
 - Password must be 16+ characters
 - No recovery if lost (treat it like a private key)
+- If the CLI auto-generates a password for you, back it up soon after wallet creation
+
+**Important:** password auth is one of the main ways agents and operators get repeatable wallet access without browser auth. But the password is effectively wallet-critical material. If you lose local credentials and do not have a backup, you may lose access to that wallet.
 
 ## Operating Modes
 
@@ -83,6 +94,15 @@ ADDRESSES=$(emblemai -a -m "List my addresses as JSON")
 ```
 
 Agent mode always uses password auth (never browser auth), retains conversation history between calls, and supports the full Hustle AI toolset including trading, transfers, portfolio queries, and cross-chain operations.
+
+#### Multiple agents using the same CLI instance
+Session data is stored in `$HOME/.emblemai/` and is shared across all invocations of the CLI.
+If you need to run multiple agents with different wallets on the same machine, you can use a different home directory for each agent instance:
+
+```bash
+HOME=/home/user/agent1 emblemai --agent -m "What are my wallet addresses?"
+HOME=/home/user/agent2 emblemai --agent -m "What are my wallet addresses?"
+```
 
 #### Integrating with Agent Frameworks
 
@@ -189,13 +209,19 @@ emblemai --reset
 
 ## Auth Backup and Restore
 
-The `/auth` menu includes a **Backup Agent Auth** option that exports your credentials to a single JSON file. To restore on another machine:
+The `/auth` menu includes a **Backup Agent Auth** option that exports your credentials to a single JSON file. If you are using password auth, especially an auto-generated password, this backup flow is the main recovery path you should know about.
 
 ```bash
 emblemai --restore-auth ~/emblemai-auth-backup.json
 ```
 
 This places the credential files in `~/.emblemai/` and you're ready to go.
+
+Recommended operator habit:
+1. create or authenticate the wallet
+2. confirm the wallet addresses look right
+3. run `/auth` → **Backup Agent Auth**
+4. store the backup somewhere secure and offline-friendly
 
 ## Plugins
 

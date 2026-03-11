@@ -10,7 +10,13 @@
   "scripts": {
     "start": "node emblemai.js",
     "simple": "node emblemai.js --simple",
-    "reset": "node emblemai.js --reset"
+    "reset": "node emblemai.js --reset",
+    "typecheck": "tsc --project tsconfig.json",
+    "typecheck:watch": "tsc --project tsconfig.json --watch --preserveWatchOutput"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.0"
   },
   "dependencies": {
     "@dotenvx/dotenvx": "^1.52.0",
@@ -22,7 +28,7 @@
     "blessed-contrib": "^4.11.0",
     "chalk": "^5.3.0",
     "dotenv": "^16.3.1",
-    "hustle-incognito": "^1.0.4"
+    "hustle-incognito": "^1.1.0"
   },
   "keywords": [
     "ai",

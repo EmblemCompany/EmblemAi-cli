@@ -8,7 +8,7 @@ All commands are prefixed with `/`. Type them in the input bar and press Enter.
 
 | Command | Description |
 |---------|-------------|
-| `/help` | Show all available commands |
+| `/help` | Show all available commands and key auth guidance |
 | `/settings` | Show current configuration (vault ID, model, streaming, debug, tools) |
 | `/exit` | Exit the CLI (also: `/quit`) |
 

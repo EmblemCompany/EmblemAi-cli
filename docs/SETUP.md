@@ -17,7 +17,7 @@ npm install -g @emblemvault/agentwallet
 ### From source
 
 ```bash
-git clone https://github.com/EmblemCompany/EmblemAi-AgentWallet-Plugins.git
+git clone https://github.com/EmblemCompany/EmblemAi-cli.git
 cd EmblemAi-AgentWallet-Plugins/cli
 npm install
 npm link   # makes `emblemai` available globally
@@ -43,11 +43,14 @@ When you run `emblemai` without `-p`, the CLI:
 
 **Login and signup are the same action** -- the first use of a password creates a vault, and subsequent uses of the same password return the same vault.
 
+Password auth is a core feature for agent workflows because it gives repeatable wallet access without requiring browser auth each time.
+
 #### Password requirements
 
 - Minimum 16 characters
 - No recovery if lost (treat it like a private key)
 - Different passwords produce completely different wallets and identities
+- If the CLI auto-generates a password for agent mode, back it up after first wallet creation
 
 #### Password resolution (priority order)
 
@@ -101,6 +104,8 @@ emblemai --reset
 ### Backup
 
 From the `/auth` menu (option 8), select **Backup Agent Auth** to export your credentials to a JSON file. This file contains your EmblemVault password -- keep it secure.
+
+If you are using password auth, especially auto-generated password auth in agent mode, this backup should be treated as part of initial setup rather than an optional cleanup step.
 
 ### Restore
 
