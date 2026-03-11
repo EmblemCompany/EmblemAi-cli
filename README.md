@@ -10,6 +10,14 @@ Each agent gets a deterministic wallet derived from a password. No seed phrases,
 npm install -g @emblemvault/agentwallet
 ```
 
+## Development
+
+Use TypeScript's checker against the JavaScript source and JSDoc annotations:
+
+```bash
+npm run typecheck
+```
+
 ## Quick Start
 
 ```bash

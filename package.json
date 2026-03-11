@@ -10,7 +10,13 @@
   "scripts": {
     "start": "node emblemai.js",
     "simple": "node emblemai.js --simple",
-    "reset": "node emblemai.js --reset"
+    "reset": "node emblemai.js --reset",
+    "typecheck": "tsc --project tsconfig.json",
+    "typecheck:watch": "tsc --project tsconfig.json --watch --preserveWatchOutput"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.0"
   },
   "dependencies": {
     "@dotenvx/dotenvx": "^1.52.0",
