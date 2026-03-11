@@ -471,7 +471,6 @@ async function main() {
       try {
         history.messages.push({ role: 'user', content: messageArg });
         const res = await client.chat(buildMessages(history.messages, pluginManager), { rawResponse: false });
-        // @TODO: Remove this type assertion after next SDK version bump
         const response = /** @type {import('hustle-incognito').ProcessedResponse} */ (res);
         clearInterval(progressInterval);
         console.log('');
