@@ -64,6 +64,8 @@ Password auth is a core feature for agent workflows because it gives repeatable 
 
 In agent mode, if no password is found from sources 1-3, a secure random password is auto-generated and stored encrypted. This means agent mode works out of the box with no manual password setup.
 
+Security note: `-p` and `EMBLEM_PASSWORD` are still supported, but they are the easiest ways to leak password material through shell history, process inspection, CI logs, wrappers, copied snippets, or shell init files. Prefer browser auth, hidden local prompts, stored local credentials, or auto-generated password flow when possible.
+
 ### What happens on authentication
 
 1. Browser auth: session JWT is received from browser and hydrated into the SDK
@@ -113,7 +115,7 @@ If you are using password auth, especially auto-generated password auth in agent
 emblemai --restore-auth ~/emblemai-auth-backup.json
 ```
 
-This places the credential files in `~/.emblemai/` so you can authenticate immediately.
+This places the credential files in `<EMBLEMAI_DIR>` (or `~/.emblemai/` by default) so you can authenticate immediately.
 
 ## Command-Line Flags
 
@@ -127,7 +129,8 @@ This places the credential files in `~/.emblemai/` so you can authenticate immed
 | `--debug` | | Start with debug mode enabled |
 | `--stream` | | Start with streaming enabled (default: on) |
 | `--log` | | Enable stream logging |
-| `--log-file <path>` | | Override log file path (default: `~/.emblemai-stream.log`) |
+| `--log-file <path>` | | Override log file path (default: `<EMBLEMAI_DIR>/stream.log`) |
+| `--emblemai-dir <path>` | | Override the local EmblemAI state directory |
 | `--hustle-url <url>` | | Override Hustle API URL |
 | `--auth-url <url>` | | Override auth service URL |
 | `--api-url <url>` | | Override API service URL |
@@ -137,6 +140,7 @@ This places the credential files in `~/.emblemai/` so you can authenticate immed
 | Variable | Description |
 |----------|-------------|
 | `EMBLEM_PASSWORD` | Authentication password |
+| `EMBLEMAI_DIR` | Override the local EmblemAI state directory |
 | `HUSTLE_API_URL` | Override Hustle API endpoint |
 | `EMBLEM_AUTH_URL` | Override auth service endpoint |
 | `EMBLEM_API_URL` | Override API service endpoint |
@@ -154,18 +158,31 @@ CLI arguments override environment variables when both are provided.
 5. Type `/help` to see all commands
 6. Try: "What are my wallet addresses?" to verify authentication
 
+## Multi-Agent / Shared-Host Setup
+
+If multiple agents on the same machine need isolated local state while sharing one global CLI install, set a different EmblemAI directory per agent.
+
+Examples:
+
+```bash
+emblemai --emblemai-dir /srv/emblemai/motoko --agent -m "What are my wallet addresses?"
+emblemai --emblemai-dir /srv/emblemai/echo --agent -m "Show my balances"
+```
+
+This isolates local credential/session/history/plugin state per agent. You can also set `EMBLEMAI_DIR` in wrapper scripts or service-unit environments.
+
 ## File Locations
 
 | File | Purpose |
 |------|---------|
-| `~/.emblemai/.env` | dotenvx-encrypted credentials (EMBLEM_PASSWORD) |
-| `~/.emblemai/.env.keys` | dotenvx private decryption key (chmod 600) |
-| `~/.emblemai/secrets.json` | auth-sdk encrypted plugin secrets |
-| `~/.emblemai/session.json` | Saved browser auth session (auto-managed) |
-| `~/.emblemai/history/{vaultId}.json` | Conversation history (per vault) |
-| `~/.emblemai/x402-favorites.json` | Saved x402 favorite services |
-| `~/.emblemai-stream.log` | Stream log (when enabled) |
-| `~/.emblemai-plugins.json` | Custom plugin definitions |
+| `<EMBLEMAI_DIR>/.env` | dotenvx-encrypted credentials (EMBLEM_PASSWORD) |
+| `<EMBLEMAI_DIR>/.env.keys` | dotenvx private decryption key (chmod 600) |
+| `<EMBLEMAI_DIR>/secrets.json` | auth-sdk encrypted plugin secrets |
+| `<EMBLEMAI_DIR>/session.json` | Saved browser auth session (auto-managed) |
+| `<EMBLEMAI_DIR>/history/{vaultId}.json` | Conversation history (per vault) |
+| `<EMBLEMAI_DIR>/x402-favorites.json` | Saved x402 favorite services |
+| `<EMBLEMAI_DIR>/stream.log` | Stream log (when enabled) |
+| `<EMBLEMAI_DIR>/plugins.json` | Custom plugin definitions |
 
 Legacy credentials (`~/.emblem-vault`) are automatically migrated to the new dotenvx-encrypted format on first run. The old file is backed up to `~/.emblem-vault.bak`.
 

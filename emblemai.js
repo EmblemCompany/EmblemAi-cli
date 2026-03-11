@@ -34,7 +34,8 @@ const require = createRequire(import.meta.url);
 const { version: PKG_VERSION } = require('./package.json');
 
 // History directory — partitioned by vaultId
-const HISTORY_DIR = path.join(os.homedir(), '.emblemai', 'history');
+let EMBLEMAI_DIR = process.env.EMBLEMAI_DIR || path.join(os.homedir(), '.emblemai');
+let HISTORY_DIR = path.join(EMBLEMAI_DIR, 'history');
 
 // ── Formatting (hustle-v5 style) ────────────────────────────────────────────
 
@@ -113,6 +114,12 @@ const isReset = hasFlag(['--reset']);
 const initialDebug = hasFlag(['--debug']);
 const initialStream = hasFlag(['--stream']);
 const initialLog = hasFlag(['--log']);
+const emblemAiDirArg = getArg(['--emblemai-dir']);
+if (emblemAiDirArg) {
+  process.env.EMBLEMAI_DIR = path.resolve(emblemAiDirArg);
+  EMBLEMAI_DIR = process.env.EMBLEMAI_DIR;
+  HISTORY_DIR = path.join(EMBLEMAI_DIR, 'history');
+}
 // --payg on [TOKEN] | --payg off
 const paygArg = (() => {
   const idx = args.indexOf('--payg');
@@ -137,7 +144,7 @@ const apiUrl = apiUrlArg || process.env.EMBLEM_API_URL || undefined;
 
 // ── Stream Logger ──────────────────────────────────────────────────────────
 
-const LOG_FILE = logFileArg || path.join(os.homedir(), '.emblemai-stream.log');
+const LOG_FILE = logFileArg || path.join(EMBLEMAI_DIR, 'stream.log');
 let _logEnabled = initialLog;
 let _logFd = null;
 
@@ -199,7 +206,7 @@ function clearHistory(vaultId) {
 
 /** Migrate legacy single-file history into per-vault directory */
 function migrateHistory(vaultId) {
-  const legacyFile = path.join(os.homedir(), '.emblemai-history.json');
+  const legacyFile = path.join(EMBLEMAI_DIR, 'history-legacy.json');
   if (!fs.existsSync(legacyFile)) return;
   try {
     const data = JSON.parse(fs.readFileSync(legacyFile, 'utf8'));
@@ -289,7 +296,7 @@ async function main() {
           process.exit(1);
         }
 
-        const emblemDir = path.join(os.homedir(), '.emblemai');
+        const emblemDir = EMBLEMAI_DIR;
         fs.mkdirSync(emblemDir, { recursive: true, mode: 0o700 });
 
         fs.writeFileSync(path.join(emblemDir, '.env'), backup.env, { mode: 0o600 });
@@ -322,6 +329,21 @@ async function main() {
       if (!password || password.length < 16) {
         console.error(fmt.error('Password must be at least 16 characters.'));
         process.exit(1);
+      }
+
+      if (passwordResult.source === 'arg') {
+        const out = isAgentMode ? process.stderr : process.stdout;
+        out.write(chalk.yellow('\n⚠ Password auth was provided via -p/--password.\n'));
+        out.write(chalk.dim('  This is convenient, but less safe than browser auth, hidden local prompts, or stored local credentials.\n'));
+        out.write(chalk.dim('  Command-line arguments can leak through shell history, process inspection, CI logs, wrappers, and copied snippets.\n'));
+        out.write(chalk.dim('  Prefer browser auth, local stored credentials, or first-run generated password flow when possible.\n\n'));
+      }
+
+      if (passwordResult.source === 'env') {
+        const out = isAgentMode ? process.stderr : process.stdout;
+        out.write(chalk.yellow('\n⚠ Password auth was provided via EMBLEM_PASSWORD.\n'));
+        out.write(chalk.dim('  Environment-based secrets can leak through shell init files, process env inspection, CI logs, wrappers, and copied snippets.\n'));
+        out.write(chalk.dim('  Prefer browser auth, hidden local prompt entry, or stored local credentials when possible.\n\n'));
       }
 
       if (passwordResult.generated) {

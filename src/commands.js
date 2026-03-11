@@ -55,6 +55,8 @@ function cmdHelp(ctx) {
     `  ${chalk.dim('- Interactive use: browser auth is recommended.')}`,
     `  ${chalk.dim('- Agent mode uses password auth and can create a repeatable wallet identity.')}`,
     `  ${chalk.dim('- If password auth created a new wallet for you, back it up via /auth -> Backup Agent Auth.')}`,
+    `  ${chalk.dim('- -p/--password and EMBLEM_PASSWORD are supported, but can leak through history, process inspection, CI logs, wrappers, or copied snippets.')}`,
+    `  ${chalk.dim('- Prefer browser auth, hidden local prompts, or stored local credentials when possible.')}`,
   ].join('\n');
   const text = `\n${header}\n${chalk.dim('─'.repeat(maxCmd + 30))}\n${lines.join('\n')}\n${authNotes}\n`;
   ctx.appendMessage('system', text);

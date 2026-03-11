@@ -17,7 +17,7 @@ import { startAuthServer } from './auth-server.js';
 
 // ── Paths ────────────────────────────────────────────────────────────────────
 
-const EMBLEMAI_DIR = path.join(os.homedir(), '.emblemai');
+const EMBLEMAI_DIR = process.env.EMBLEMAI_DIR || path.join(os.homedir(), '.emblemai');
 const ENV_PATH = path.join(EMBLEMAI_DIR, '.env');
 const KEYS_PATH = path.join(EMBLEMAI_DIR, '.env.keys');
 const SECRETS_PATH = path.join(EMBLEMAI_DIR, 'secrets.json');

@@ -9,7 +9,8 @@ import path from 'path';
 import os from 'os';
 import chalk from 'chalk';
 
-const CUSTOM_PLUGINS_FILE = path.join(os.homedir(), '.emblemai-plugins.json');
+const EMBLEMAI_DIR = process.env.EMBLEMAI_DIR || path.join(os.homedir(), '.emblemai');
+const CUSTOM_PLUGINS_FILE = path.join(EMBLEMAI_DIR, 'plugins.json');
 
 /** Valid plugin name: lowercase, starts with letter, allows hyphens/digits */
 const PLUGIN_NAME_RE = /^[a-z][a-z0-9-]{0,63}$/;

@@ -9,7 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const EMBLEMAI_DIR = path.join(os.homedir(), '.emblemai');
+const EMBLEMAI_DIR = process.env.EMBLEMAI_DIR || path.join(os.homedir(), '.emblemai');
 const SESSION_FILE = path.join(EMBLEMAI_DIR, 'session.json');
 
 // Token refresh buffer (refresh 5 minutes before expiry)

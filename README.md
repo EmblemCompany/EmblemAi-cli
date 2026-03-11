@@ -46,6 +46,8 @@ Agent mode always uses password authentication:
 - Password is stored encrypted via dotenvx in `~/.emblemai/.env`
 - Use `-p` flag to provide a specific password
 
+`-p` remains supported, but it is the riskiest password-auth entry path. Command-line arguments can leak through shell history, process inspection, CI logs, wrappers, and copied snippets. Prefer browser auth, hidden local prompts, stored local credentials, or the first-run generated password flow when possible.
+
 **Login and signup are the same action.** The first use of a password creates a vault; subsequent uses return the same vault. Different passwords produce different wallets.
 
 - Password must be 16+ characters
@@ -136,7 +138,7 @@ emblemai --reset
 
 | Flag | Description |
 |------|-------------|
-| `-p`, `--password <pw>` | EmblemVault password (min 16 chars) -- skips browser auth |
+| `-p`, `--password <pw>` | EmblemVault password (min 16 chars) -- skips browser auth; convenient but higher leakage risk |
 | `-m`, `--message <msg>` | Message to send (agent mode) |
 | `-a`, `--agent` | Agent mode (single message, exit) |
 | `--payg on [TOKEN]` | One-time PAYG setup -- enable billing, optionally set payment token (SOL, ETH, etc.) |
@@ -146,6 +148,7 @@ emblemai --reset
 | `--stream` | Toggle streaming (default: on) |
 | `--log` | Enable stream logging |
 | `--log-file <path>` | Override log file path |
+| `--emblemai-dir <path>` | Override the local EmblemAI state directory (for multi-agent/shared-host setups) |
 | `--reset` | Clear conversation history |
 | `--hustle-url <url>` | Override Hustle API endpoint |
 | `--auth-url <url>` | Override auth endpoint |
@@ -155,7 +158,8 @@ emblemai --reset
 
 | Variable | Description |
 |----------|-------------|
-| `EMBLEM_PASSWORD` | Password (alternative to `-p`) |
+| `EMBLEM_PASSWORD` | Password (alternative to `-p`; also higher leakage risk) |
+| `EMBLEMAI_DIR` | Override the local EmblemAI state directory |
 | `HUSTLE_API_URL` | Hustle API endpoint override |
 | `EMBLEM_AUTH_URL` | Auth endpoint override |
 | `EMBLEM_API_URL` | API endpoint override |
@@ -190,6 +194,26 @@ emblemai --reset
 | `/reset` | Clear conversation |
 | `/exit` | Exit |
 
+## Multi-Agent / Shared-Host Setup
+
+If multiple agents on the same machine need to use the CLI globally, give each one a separate local state directory:
+
+```bash
+emblemai --emblemai-dir /var/lib/emblemai/motoko --agent -m "What are my wallet addresses?"
+emblemai --emblemai-dir /var/lib/emblemai/sentinel --agent -m "Show my balances"
+```
+
+This isolates:
+- local credentials
+- sessions
+- history
+- plugin secrets
+- plugin configuration
+- x402 favorites
+- local logs
+
+You can also set `EMBLEMAI_DIR` in the environment for wrappers or service units.
+
 ## Auth Backup and Restore
 
 The `/auth` menu includes a **Backup Agent Auth** option that exports your credentials to a single JSON file. If you are using password auth, especially an auto-generated password, this backup flow is the main recovery path you should know about.
@@ -198,7 +222,7 @@ The `/auth` menu includes a **Backup Agent Auth** option that exports your crede
 emblemai --restore-auth ~/emblemai-auth-backup.json
 ```
 
-This places the credential files in `~/.emblemai/` and you're ready to go.
+This places the credential files in `<EMBLEMAI_DIR>` (or `~/.emblemai/` by default) and you're ready to go.
 
 Recommended operator habit:
 1. create or authenticate the wallet

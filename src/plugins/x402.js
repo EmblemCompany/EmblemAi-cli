@@ -31,7 +31,8 @@ import os from 'os';
 
 const XGATE_BASE = 'https://api.xgate.run';
 const DEFAULT_HUSTLE_URL = 'https://agenthustle.ai';
-const FAVORITES_FILE = path.join(os.homedir(), '.emblemai', 'x402-favorites.json');
+const EMBLEMAI_DIR = process.env.EMBLEMAI_DIR || path.join(os.homedir(), '.emblemai');
+const FAVORITES_FILE = path.join(EMBLEMAI_DIR, 'x402-favorites.json');
 
 /**
  * @param {{ authSdk: object, hustleUrl?: string }} config

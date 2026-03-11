@@ -72,6 +72,8 @@ The `/auth` menu provides:
 | 6. Solana Address | Show your Solana address |
 | 7. BTC Addresses | Show your Bitcoin addresses (P2PKH, P2WPKH, P2TR) |
 | 8. Backup Agent Auth | Export credentials to a backup file |
+
+> Security note: `-p/--password` and `EMBLEM_PASSWORD` are supported for password auth, but they are higher-leakage paths than browser auth, hidden local prompts, or stored local credentials.
 | 9. Logout | Clear session and exit (requires re-authentication on next run) |
 
 ### Payment (PAYG Billing)
@@ -132,7 +134,7 @@ Requires [glow](https://github.com/charmbracelet/glow) to be installed.
 | `/log off` | Disable stream logging |
 | `/log` | Show logging status and file path |
 
-Log file defaults to `~/.emblemai-stream.log`. Override with `--log-file <path>`.
+Log file defaults to `<EMBLEMAI_DIR>/stream.log`. Override with `--log-file <path>`.
 
 ## Keyboard Shortcuts
 
