@@ -100,7 +100,6 @@ Session data is stored in `$HOME/.emblemai/` and is shared across all invocation
 If you need to run multiple agents with different wallets on the same machine, you can use a different home directory for each agent instance:
 
 ```bash
-# Agent 1 with its own wallet
 HOME=/home/user/agent1 emblemai --agent -m "What are my wallet addresses?"
 HOME=/home/user/agent2 emblemai --agent -m "What are my wallet addresses?"
 ```
