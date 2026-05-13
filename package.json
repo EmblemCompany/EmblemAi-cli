@@ -1,6 +1,6 @@
 {
   "name": "@emblemvault/agentwallet",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "description": "CLI for EmblemAI - autonomous crypto wallet management with browser auth, streaming, and plugins",
   "main": "emblemai.js",
   "type": "module",
