@@ -22,6 +22,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { fileURLToPath } from 'url';
 import readline from 'readline';
 import chalk from 'chalk';
 import { loadSessionPreferences, saveSession, saveSessionPreferences } from './src/session-store.js';
@@ -534,6 +535,7 @@ function buildMessages(msgs, pluginManager) {
 async function showSplash() {
   try {
     const { execFileSync } = await import('child_process');
+    const scriptDir = path.dirname(fileURLToPath(import.meta.url));
     execFileSync(process.execPath, ['-e', `
       const blessed = require('blessed');
       const screen = blessed.screen({ smartCSR: false, fullUnicode: false, warnings: false });
@@ -552,7 +554,11 @@ async function showSplash() {
       });
       screen.render();
       setTimeout(() => { screen.destroy(); process.exit(0); }, 2000);
-    `], { stdio: 'inherit', timeout: 5000 });
+    `], {
+      cwd: scriptDir,
+      stdio: ['inherit', 'inherit', 'ignore'],
+      timeout: 5000,
+    });
   } catch {
     // blessed not available or timed out — skip
   }
